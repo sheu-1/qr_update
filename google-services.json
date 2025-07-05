@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "602000963837",
+    "project_id": "swiftqr-e9750",
+    "storage_bucket": "swiftqr-e9750.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:602000963837:android:ca6d1b1f3409cf1baee694",
+        "android_client_info": {
+          "package_name": "com.alex.qr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDocsoChWIxrNV-ClUszblKL0P9w8h2i2E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
