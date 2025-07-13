@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, RefreshControl, TouchableOpacity } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useFocusEffect, Stack } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +16,7 @@ interface QRCodeRecord {
 export default function MyQRScreen() {
   const [qrCodes, setQrCodes] = useState<QRCodeRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enlargedQrCode, setEnlargedQrCode] = useState<QRCodeRecord | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,7 +133,11 @@ export default function MyQRScreen() {
           data={qrCodes}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={styles.qrItem}>
+            <TouchableOpacity 
+              style={styles.qrItem}
+              onPress={() => setEnlargedQrCode(item)}
+              activeOpacity={0.9}
+            >
               <Image 
                 source={{ uri: item.image_url }} 
                 style={styles.qrImage} 
@@ -148,7 +153,7 @@ export default function MyQRScreen() {
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-            </View>
+            </TouchableOpacity>
           )}
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -160,6 +165,24 @@ export default function MyQRScreen() {
             />
           }
         />
+      )}
+
+      {/* Full Screen QR Code Modal */}
+      {enlargedQrCode && (
+        <TouchableOpacity
+          style={styles.fullScreenOverlay}
+          activeOpacity={1}
+          onPress={() => setEnlargedQrCode(null)}
+        >
+          <View style={styles.fullScreenQrContainer}>
+            <Image 
+              source={{ uri: enlargedQrCode.image_url }} 
+              style={styles.enlargedQrImage} 
+              resizeMode="contain"
+            />
+            <Text style={styles.closeText}>Tap anywhere to close</Text>
+          </View>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -228,5 +251,32 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginLeft: spacing.xs,
+  } as TextStyle,
+  fullScreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  } as ViewStyle,
+  fullScreenQrContainer: {
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  enlargedQrImage: {
+    width: 300,
+    height: 300,
+  } as ImageStyle,
+  closeText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: 14,
   } as TextStyle,
 });

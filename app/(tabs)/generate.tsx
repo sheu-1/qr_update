@@ -18,14 +18,44 @@ import { decode } from 'base64-arraybuffer';
 import { colors, spacing, typography } from '../../theme';
 
 export default function GenerateScreen() {
-  const [accountNumber, setAccountNumber] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [formattedPhoneNumber, setFormattedPhoneNumber] = useState('');
   const [qrCodeId, setQrCodeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [focusedQrCode, setFocusedQrCode] = useState<string | null>(null);
   const qrCodeRef = useRef<any>(null);
 
+  const formatPhoneNumber = (input: string) => {
+    // Remove all non-digit characters
+    const cleaned = input.replace(/\D/g, '');
+    
+    // If the number starts with 0, replace with 254
+    if (cleaned.startsWith('0')) {
+      return '254' + cleaned.substring(1);
+    }
+    // If it starts with 254, return as is
+    else if (cleaned.startsWith('254')) {
+      return cleaned;
+    }
+    // If it's a 9 or 10 digit number, add 254
+    else if (cleaned.length === 9 || cleaned.length === 10) {
+      return '254' + (cleaned.startsWith('7') || cleaned.startsWith('1') ? cleaned : '');
+    }
+    // Otherwise return as is (will be validated)
+    return cleaned;
+  };
+
   const generateAndUploadQRCode = async () => {
-    if (!accountNumber) {
-      Alert.alert('Error', 'Please enter an account number.');
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Please enter a phone number.');
+      return;
+    }
+
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    
+    // Validate Kenyan phone number (starts with 2547 or 2541 and is 12 digits total)
+    if (!/^254[17]\d{8}$/.test(formattedPhone)) {
+      Alert.alert('Error', 'Please enter a valid Kenyan phone number (e.g., 0712345678 or 254712345678)');
       return;
     }
 
@@ -39,7 +69,10 @@ export default function GenerateScreen() {
       // 1. Insert data and get the new record's ID
       const { data: newQrCode, error: insertError } = await supabase
         .from('qr_codes')
-        .insert({ account_number: accountNumber, user_id: user.id })
+        .insert({ 
+          account_number: formattedPhone, // Using the formatted phone number with 254
+          user_id: user.id 
+        })
         .select()
         .single();
 
@@ -110,17 +143,44 @@ export default function GenerateScreen() {
       }} />
 
       <View style={styles.content}>
-        <Text style={styles.label}>Enter Account Number</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your account number"
-          placeholderTextColor={colors.textSecondary}
-          value={accountNumber}
-          onChangeText={setAccountNumber}
-          keyboardType="numeric"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Text style={styles.label}>Enter Phone Number</Text>
+        <View style={styles.phoneInputContainer}>
+          <View style={styles.countryCodeContainer}>
+            <Text style={styles.countryCodeText}>+254</Text>
+          </View>
+          <TextInput
+            style={[styles.input, styles.phoneInput]}
+            placeholder="712 345 678"
+            placeholderTextColor={colors.textSecondary}
+            value={formattedPhoneNumber}
+            onChangeText={(text) => {
+              // Only allow numbers and limit to 9 digits (Kenyan numbers are 9 digits after 254)
+              const cleaned = text.replace(/\D/g, '').substring(0, 9);
+              setPhoneNumber(cleaned);
+              
+              // Format the display with spaces for better readability
+              if (cleaned.length > 0) {
+                const part1 = cleaned.substring(0, 3);
+                const part2 = cleaned.substring(3, 6);
+                const part3 = cleaned.substring(6, 9);
+                let formatted = part1;
+                if (part2) formatted += ` ${part2}`;
+                if (part3) formatted += ` ${part3}`;
+                setFormattedPhoneNumber(formatted);
+              } else {
+                setFormattedPhoneNumber('');
+              }
+            }}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+        {formattedPhoneNumber ? (
+          <Text style={styles.previewText}>
+            Full number: +254{formattedPhoneNumber.replace(/\s/g, '')}
+          </Text>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -139,7 +199,11 @@ export default function GenerateScreen() {
         </TouchableOpacity>
 
         {qrCodeId && (
-          <View style={styles.qrContainer}>
+          <TouchableOpacity 
+            style={styles.qrContainer}
+            onPress={() => setFocusedQrCode(qrCodeId)}
+            activeOpacity={0.9}
+          >
             <View style={styles.qrCodeWrapper}>
               <QRCodeSVG
                 getRef={(node) => {
@@ -153,8 +217,27 @@ export default function GenerateScreen() {
                 backgroundColor={colors.white}
               />
             </View>
-            <Text style={styles.successText}>QR Code Generated Successfully!</Text>
-          </View>
+            <Text style={styles.successText}>Tap to enlarge</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Full Screen QR Code Modal */}
+        {focusedQrCode && (
+          <TouchableOpacity
+            style={styles.fullScreenOverlay}
+            activeOpacity={1}
+            onPress={() => setFocusedQrCode(null)}
+          >
+            <View style={styles.fullScreenQrContainer}>
+              <QRCodeSVG
+                value={focusedQrCode}
+                size={300}
+                color={colors.black}
+                backgroundColor={colors.white}
+              />
+              <Text style={styles.closeText}>Tap anywhere to close</Text>
+            </View>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -177,14 +260,41 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   } as TextStyle,
   input: {
-    ...typography.body,
-    backgroundColor: colors.mediumGray,
+    backgroundColor: colors.darkGray,
     color: colors.white,
-    borderRadius: 8,
     padding: spacing.md,
+    borderRadius: 8,
+    fontSize: 16,
     marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    flex: 1,
+  } as TextStyle,
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  } as ViewStyle,
+  countryCodeContainer: {
+    backgroundColor: colors.darkGray,
+    padding: spacing.md,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    justifyContent: 'center',
+    marginRight: 1,
+  } as ViewStyle,
+  countryCodeText: {
+    color: colors.white,
+    fontSize: 16,
+  } as TextStyle,
+  phoneInput: {
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    marginBottom: 0,
+  } as TextStyle,
+  previewText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginTop: -spacing.md,
+    marginBottom: spacing.lg,
   } as TextStyle,
   button: {
     backgroundColor: colors.primary,
@@ -230,5 +340,28 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginTop: spacing.md,
     textAlign: 'center',
+  } as TextStyle,
+  fullScreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  } as ViewStyle,
+  fullScreenQrContainer: {
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  closeText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: 14,
   } as TextStyle,
 });
